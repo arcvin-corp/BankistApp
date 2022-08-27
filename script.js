@@ -88,10 +88,20 @@ const calcDisplayBalance = function (movements) {
 calcDisplayBalance(account1.movements);
 
 const calcDisplaySummary = function (movements, intRate) {
-  const depositsArray = movements.filter(mov => mov > 0);
-  const depositsTotal = depositsArray.reduce((acc, mov) => acc + mov);
-  const interest = depositsTotal * intRate;
+  const incomes = movements
+    .filter(mov => mov > 0)
+    .reduce((acc, mov) => acc + mov, 0);
+  labelSumIn.textContent = incomes + ' EUR';
+
+  const outgoing = movements
+    .filter(mov => mov < 0)
+    .reduce((acc, mov) => acc + mov, 0);
+  labelSumOut.textContent = Math.abs(outgoing) + ' EUR';
+
+  const interest = movements.filter(mov => mov > 0);
 };
+
+calcDisplaySummary(account1.movements);
 
 const createUsernames = function (accs) {
   accs.forEach(function (acc) {
