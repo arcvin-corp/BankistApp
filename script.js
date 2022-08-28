@@ -47,6 +47,7 @@ const labelTimer = document.querySelector('.timer');
 const containerApp = document.querySelector('.app');
 const containerMovements = document.querySelector('.movements');
 
+const loginform = document.querySelector('.login');
 const btnLogin = document.querySelector('.login__btn');
 const btnTransfer = document.querySelector('.form__btn--transfer');
 const btnLoan = document.querySelector('.form__btn--loan');
@@ -61,7 +62,13 @@ const inputLoanAmount = document.querySelector('.form__input--loan-amount');
 const inputCloseUsername = document.querySelector('.form__input--user');
 const inputClosePin = document.querySelector('.form__input--pin');
 
+const btnLogout = document.querySelector('.logout__btn');
+
+let currentUser;
+
 const displayMovements = function (movements) {
+  containerMovements.innerHTML = '';
+
   movements.forEach(function (movement, index) {
     const movementType = movement >= 0 ? 'deposit' : 'withdrawal';
 
@@ -78,30 +85,32 @@ const displayMovements = function (movements) {
   });
 };
 
-displayMovements(account1.movements);
-
-const calcDisplayBalance = function (movements) {
-  const balance = movements.reduce((acc, mov) => acc + mov, 0);
-  labelBalance.textContent = balance + ' EUR';
+const calcDisplayBalance = function (currentUser) {
+  currentUser.balance = currentUser.movements.reduce(
+    (acc, mov) => acc + mov,
+    0
+  );
+  labelBalance.textContent = `${currentUser.balance} EUR`;
 };
 
-calcDisplayBalance(account1.movements);
-
-const calcDisplaySummary = function (movements, intRate) {
-  const incomes = movements
+const calcDisplaySummary = function (currentUser) {
+  const incomes = currentUser.movements
     .filter(mov => mov > 0)
     .reduce((acc, mov) => acc + mov, 0);
-  labelSumIn.textContent = incomes + ' EUR';
+  labelSumIn.textContent = `${incomes} EUR`;
 
-  const outgoing = movements
+  const outgoing = currentUser.movements
     .filter(mov => mov < 0)
     .reduce((acc, mov) => acc + mov, 0);
-  labelSumOut.textContent = Math.abs(outgoing) + ' EUR';
+  labelSumOut.textContent = `${Math.abs(outgoing)} EUR`;
 
-  const interest = movements.filter(mov => mov > 0);
+  const interest = currentUser.movements
+    .filter(deposit => deposit > 0)
+    .map(deposit => (deposit * currentUser.interestRate) / 100)
+    .filter(deposit => deposit > 1)
+    .reduce((acc, intrst) => acc + intrst, 0);
+  labelSumInterest.textContent = `${interest} EUR`;
 };
-
-calcDisplaySummary(account1.movements);
 
 const createUsernames = function (accs) {
   accs.forEach(function (acc) {
@@ -114,3 +123,134 @@ const createUsernames = function (accs) {
 };
 
 createUsernames(accounts);
+
+const handleTransfer = function (destUser, transferAmount) {
+  // Add a withdrawal transaction to the current logged in user account's movements array
+  currentUser.movements.push(-Math.abs(transferAmount));
+
+  // Add a deposit transaction to the desintaion account's movements array
+  destUser.movements.push(transferAmount);
+
+  // Call display account information function of source account user
+  displayAccountInfo(currentUser);
+};
+
+const displayAccountInfo = function (currentUser) {
+  displayMovements(currentUser.movements);
+  calcDisplayBalance(currentUser);
+  calcDisplaySummary(currentUser);
+};
+
+const login = function (username, pin) {
+  // Find the user account
+  currentUser = accounts.find(acc => acc.username === username);
+
+  if (currentUser?.pin === pin) {
+    // Clear the login field input values
+    inputLoginUsername.value = inputLoginPin.value = '';
+    inputLoginPin.blur(); // To remove focus from PIN input field.
+
+    // Hide the user credentials input fields and enable logout button
+    loginform.style.display = 'none';
+    btnLogout.style.display = 'block';
+
+    // Display welcome message
+    labelWelcome.textContent = `Good Day, ${currentUser.owner.split(' ')[0]}!`;
+
+    // Call display account information function
+    displayAccountInfo(currentUser);
+
+    // Unhide and show the app container
+    containerApp.style.opacity = 100;
+  } else {
+    console.log('Invalid User');
+  }
+};
+
+const closeAccount = function (username, pin) {
+  // Validate the credentials and remove the account
+  if (currentUser.username === username && currentUser.pin === pin) {
+    const indexOfAccount = accounts.findIndex(
+      acc => acc.username === currentUser.username
+    );
+    accounts.splice(indexOfAccount, 1);
+
+    // Logout
+    logout();
+  }
+};
+
+const logout = function () {
+  containerMovements.innerHTML = '';
+  labelBalance.textContent =
+    labelSumIn.textContent =
+    labelSumOut.textContent =
+    labelSumInterest.textContent =
+      0;
+  containerApp.style.opacity = 0;
+  labelWelcome.textContent = 'Log in to get started';
+  currentUser = undefined;
+  loginform.style.display = 'block';
+  btnLogout.style.display = 'none';
+};
+
+/*Event handlers*/
+
+// Login event handler
+btnLogin.addEventListener('click', function (e) {
+  // Prevent form from submitting and causing reload.
+  e.preventDefault();
+  const username = inputLoginUsername.value;
+  const pin = Number(inputLoginPin.value);
+  login(username, pin);
+});
+
+// Transfer event handler
+btnTransfer.addEventListener('click', function (e) {
+  // Prevent form from submitting and causing reload.
+  e.preventDefault();
+
+  const username = inputTransferTo.value;
+  const transferAmount = Number(inputTransferAmount.value);
+
+  // Find the destination user account
+  const destUser = accounts.find(acc => acc.username === username);
+
+  // Perform transfer
+  if (
+    destUser &&
+    transferAmount > 0 &&
+    transferAmount < currentUser.balance &&
+    currentUser.username !== username
+  ) {
+    handleTransfer(destUser, transferAmount);
+  }
+
+  // Clear the input fields
+  inputTransferTo.value = inputTransferAmount.value = '';
+  inputTransferAmount.blur();
+});
+
+// Close Account event handler
+btnClose.addEventListener('click', function (e) {
+  // Prevent form from submitting and causing reload.
+  e.preventDefault();
+
+  const username = inputCloseUsername.value.trim();
+  const pin = Number(inputClosePin.value.trim());
+
+  if (username && pin) {
+    closeAccount(username, pin);
+
+    // Clear the input fields
+    inputCloseUsername.value = inputClosePin.value = '';
+    inputClosePin.blur();
+  }
+});
+
+// Logout event handler
+btnLogout.addEventListener('click', function (e) {
+  // Prevent form from submitting and causing reload.
+  e.preventDefault();
+  logout();
+});
