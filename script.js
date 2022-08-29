@@ -34,6 +34,9 @@ const account4 = {
 };
 
 const accounts = [account1, account2, account3, account4];
+let currentUser;
+const minDepPercent = 10;
+let sortEnabled = false;
 
 // Elements
 const labelWelcome = document.querySelector('.welcome');
@@ -64,12 +67,12 @@ const inputClosePin = document.querySelector('.form__input--pin');
 
 const btnLogout = document.querySelector('.logout__btn');
 
-let currentUser;
-
-const displayMovements = function (movements) {
+const displayMovements = function (movements, sort = false) {
   containerMovements.innerHTML = '';
 
-  movements.forEach(function (movement, index) {
+  const movs = sort ? movements.slice().sort((a, b) => a - b) : movements;
+
+  movs.forEach(function (movement, index) {
     const movementType = movement >= 0 ? 'deposit' : 'withdrawal';
 
     const html = `<div class="movements__row">
@@ -109,7 +112,7 @@ const calcDisplaySummary = function (currentUser) {
     .map(deposit => (deposit * currentUser.interestRate) / 100)
     .filter(deposit => deposit > 1)
     .reduce((acc, intrst) => acc + intrst, 0);
-  labelSumInterest.textContent = `${interest} EUR`;
+  labelSumInterest.textContent = `${interest.toFixed(2)} EUR`;
 };
 
 const createUsernames = function (accs) {
@@ -135,8 +138,8 @@ const handleTransfer = function (destUser, transferAmount) {
   displayAccountInfo(currentUser);
 };
 
-const displayAccountInfo = function (currentUser) {
-  displayMovements(currentUser.movements);
+const displayAccountInfo = function (currentUser, sortMovs = false) {
+  displayMovements(currentUser.movements, sortMovs);
   calcDisplayBalance(currentUser);
   calcDisplaySummary(currentUser);
 };
@@ -167,6 +170,21 @@ const login = function (username, pin) {
   }
 };
 
+const requestLoan = function (loanAmount) {
+  // Bank has a rule that a loan can only be requested if at least one deposit is greater than 10% of the loan amount requested
+  const requiredDepAmount = (loanAmount * minDepPercent) / 100;
+
+  const isApproved = currentUser.movements
+    .filter(mov => mov > 0)
+    .some(mov => mov >= requiredDepAmount);
+  console.log(isApproved);
+
+  if (isApproved) {
+    currentUser.movements.push(loanAmount);
+    displayAccountInfo(currentUser);
+  }
+};
+
 const closeAccount = function (username, pin) {
   // Validate the credentials and remove the account
   if (currentUser.username === username && currentUser.pin === pin) {
@@ -194,7 +212,7 @@ const logout = function () {
   btnLogout.style.display = 'none';
 };
 
-/*Event handlers*/
+/* Event handlers */
 
 // Login event handler
 btnLogin.addEventListener('click', function (e) {
@@ -231,6 +249,21 @@ btnTransfer.addEventListener('click', function (e) {
   inputTransferAmount.blur();
 });
 
+// Request loan event handler
+btnLoan.addEventListener('click', function (e) {
+  // Prevent form from submitting and causing reload.
+  e.preventDefault();
+
+  const loanAmount = Number(inputLoanAmount.value);
+  if (loanAmount > 0) {
+    requestLoan(loanAmount);
+  }
+
+  // Clear the input fields
+  inputLoanAmount.value = '';
+  inputLoanAmount.blur();
+});
+
 // Close Account event handler
 btnClose.addEventListener('click', function (e) {
   // Prevent form from submitting and causing reload.
@@ -245,6 +278,19 @@ btnClose.addEventListener('click', function (e) {
     // Clear the input fields
     inputCloseUsername.value = inputClosePin.value = '';
     inputClosePin.blur();
+  }
+});
+
+// Sort event handler
+btnSort.addEventListener('click', function (e) {
+  e.preventDefault();
+
+  if (sortEnabled) {
+    displayMovements(currentUser.movements, false);
+    sortEnabled = false;
+  } else {
+    displayMovements(currentUser.movements, true);
+    sortEnabled = true;
   }
 });
 
