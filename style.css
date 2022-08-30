@@ -145,6 +145,7 @@ nav {
   background-color: #fff;
   border-radius: 1rem;
   overflow: scroll;
+  border: 5px solid #e1d3d3;
 }
 
 .movements__row {
