@@ -340,14 +340,8 @@ btnClose.addEventListener('click', function (e) {
 // Sort event handler
 btnSort.addEventListener('click', function (e) {
   e.preventDefault();
-
-  if (sortEnabled) {
-    displayMovements(currentUser.movements, false);
-    sortEnabled = false;
-  } else {
-    displayMovements(currentUser.movements, true);
-    sortEnabled = true;
-  }
+  displayMovements(currentUser.movements, !sortEnabled);
+  sortEnabled = !sortEnabled;
 });
 
 // Logout event handler
