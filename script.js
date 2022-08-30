@@ -50,8 +50,8 @@ const account1 = {
     '2020-04-01T10:17:24.185Z',
     '2020-05-08T14:11:59.604Z',
     '2020-05-27T17:01:17.194Z',
-    '2020-07-11T23:36:17.929Z',
-    '2020-07-12T10:51:36.790Z',
+    '2022-08-25T23:36:17.929Z',
+    '2022-08-29T10:51:36.790Z',
   ],
   currency: 'EUR',
   locale: 'pt-PT', // de-DE
@@ -112,34 +112,82 @@ const inputClosePin = document.querySelector('.form__input--pin');
 
 const btnLogout = document.querySelector('.logout__btn');
 
-const getShortDate = function (value) {
-  const date = new Date(value);
-  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+const formatMovementDate = function (locale, timeStamp) {
+  const daysPassed = calcDaysPassed(new Date(), new Date(timeStamp));
+
+  if (daysPassed === 0) {
+    return 'Today';
+  } else if (daysPassed === 1) {
+    return 'Yesterday';
+  } else if (daysPassed <= 7) {
+    return `${daysPassed} days ago`;
+  } else {
+    return getShortDate(locale, timeStamp);
+  }
+};
+
+const getShortDate = function (locale, timeStamp) {
+  return new Intl.DateTimeFormat(locale).format(new Date(timeStamp));
+};
+
+const calcDaysPassed = (date1, date2) => {
+  // Checking if the date values are Number and converting them if not
+  date1 = Number.isFinite(date1) ? date1 : +date1;
+  date2 = Number.isFinite(date2) ? date2 : +date2;
+
+  const daysPassed = Math.floor(
+    Math.abs((date1 - date2) / (1000 * 60 * 60 * 24))
+  );
+
+  return daysPassed;
+};
+
+const buildDatesToMovsMaps = function (account) {
+  const DatesToMovsMap = new Map();
+
+  account.movementsDates.forEach((timeStamp, idx) => {
+    DatesToMovsMap.set(timeStamp, account.movements[idx]);
+  });
+
+  return DatesToMovsMap;
 };
 
 const displayMovements = function (currentUser, sort = false) {
   containerMovements.innerHTML = '';
 
-  const movs = sort
-    ? currentUser.movements.slice().sort((a, b) => a - b)
-    : currentUser.movements;
+  let DatesToMovsMap = buildDatesToMovsMaps(currentUser);
 
-  movs.forEach(function (movement, index) {
+  if (sort) {
+    DatesToMovsMap = new Map(
+      [...DatesToMovsMap.entries()].sort((a, b) => a[1] - b[1])
+    );
+  }
+
+  let index = 1;
+
+  DatesToMovsMap.forEach(function (movement, timeStamp) {
     const movementType = movement >= 0 ? 'deposit' : 'withdrawal';
+
+    let daysDisplayData;
 
     const html = `<div class="movements__row" style="background-color: ${
       index % 2 === 0 ? '#f1f1f1' : '#fff'
     }">
 
-    <div class="movements__type movements__type--${movementType}">${
-      index + 1
-    } ${movementType}</div>
-    <div class="movements__date">08/03/2020</div>
-    <div class="movements__value">${movement.toFixed(2)} EUR</div>
+    <div class="movements__type movements__type--${movementType}">${index} ${movementType}</div>
+    <div class="movements__date">${formatMovementDate(
+      currentUser.locale,
+      timeStamp
+    )}</div>
+    <div class="movements__value">${movement.toFixed(2)} ${
+      currentUser.currency
+    }</div>
     </div>
     `;
 
     containerMovements.insertAdjacentHTML('afterbegin', html);
+
+    index++;
   });
 };
 
@@ -148,27 +196,33 @@ const calcDisplayBalance = function (currentUser) {
     (acc, mov) => acc + mov,
     0
   );
-  labelBalance.textContent = `${currentUser.balance.toFixed(2)} EUR`;
-  labelDate.textContent = getShortDate(Date.now());
+  labelBalance.textContent = `${currentUser.balance.toFixed(2)} ${
+    currentUser.currency
+  }`;
+  labelDate.textContent = getShortDate(currentUser.locale, Date.now());
 };
 
 const calcDisplaySummary = function (currentUser) {
   const incomes = currentUser.movements
     .filter(mov => mov > 0)
     .reduce((acc, mov) => acc + mov, 0);
-  labelSumIn.textContent = `${incomes.toFixed(2)} EUR`;
+  labelSumIn.textContent = `${incomes.toFixed(2)} ${currentUser.currency}`;
 
   const outgoing = currentUser.movements
     .filter(mov => mov < 0)
     .reduce((acc, mov) => acc + mov, 0);
-  labelSumOut.textContent = `${Math.abs(outgoing.toFixed(2))} EUR`;
+  labelSumOut.textContent = `${Math.abs(outgoing.toFixed(2))} ${
+    currentUser.currency
+  }`;
 
   const interest = currentUser.movements
     .filter(deposit => deposit > 0)
     .map(deposit => (deposit * currentUser.interestRate) / 100)
     .filter(deposit => deposit > 1)
     .reduce((acc, intrst) => acc + intrst, 0);
-  labelSumInterest.textContent = `${interest.toFixed(2)} EUR`;
+  labelSumInterest.textContent = `${interest.toFixed(2)} ${
+    currentUser.currency
+  }`;
 };
 
 const createUsernames = function (accs) {
@@ -184,11 +238,14 @@ const createUsernames = function (accs) {
 createUsernames(accounts);
 
 const handleTransfer = function (destUser, transferAmount) {
-  // Add a withdrawal transaction to the current logged in user account's movements array
+  // Add a withdrawal transaction to the current logged in user account's movements array with the timestamp to movementDates array
+  const transactionDate = new Date(Date.now()).toISOString();
   currentUser.movements.push(-Math.abs(transferAmount));
+  currentUser.movementsDates.push(transactionDate);
 
-  // Add a deposit transaction to the desintaion account's movements array
+  // Add a deposit transaction to the recipient account's movements array with the timestamp to movementDates array
   destUser.movements.push(transferAmount);
+  destUser.movementsDates.push(transactionDate);
 
   // Call display account information function of source account user
   displayAccountInfo(currentUser);
@@ -236,7 +293,10 @@ const requestLoan = function (loanAmount) {
   console.log(isApproved);
 
   if (isApproved) {
+    // Add a deposit transaction to the current logged in user account's movements array with the timestamp to movementDates array
+    const transactionDate = new Date(Date.now()).toISOString();
     currentUser.movements.push(loanAmount);
+    currentUser.movementsDates.push(transactionDate);
     displayAccountInfo(currentUser);
   }
 };
@@ -340,7 +400,7 @@ btnClose.addEventListener('click', function (e) {
 // Sort event handler
 btnSort.addEventListener('click', function (e) {
   e.preventDefault();
-  displayMovements(currentUser.movements, !sortEnabled);
+  displayMovements(currentUser, !sortEnabled);
   sortEnabled = !sortEnabled;
 });
 
