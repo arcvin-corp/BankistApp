@@ -82,6 +82,9 @@ const accounts = [account1, account2];
 let currentUser;
 const minDepPercent = 10;
 let sortEnabled = false;
+const globalTimeout = 1 * 60 * 1000;
+let futureTime;
+let timerSet = false;
 
 // Elements
 const labelWelcome = document.querySelector('.welcome');
@@ -264,6 +267,9 @@ const createUsernames = function (accs) {
 createUsernames(accounts);
 
 const handleTransfer = function (destUser, transferAmount) {
+  // Reset the logout timer
+  timerSet = false;
+
   // Add a withdrawal transaction to the current logged in user account's movements array with the timestamp to movementDates array
   const transactionDate = new Date(Date.now()).toISOString();
   currentUser.movements.push(-Math.abs(transferAmount));
@@ -347,6 +353,8 @@ const requestLoan = function (loanAmount) {
   console.log(isApproved);
 
   if (isApproved) {
+    // Reset the logout timeout
+    timerSet = false;
     // Add a deposit transaction to the current logged in user account's movements array with the timestamp to movementDates array
     setTimeout(() => {
       const transactionDate = new Date(Date.now()).toISOString();
@@ -365,6 +373,9 @@ const closeAccount = function (username, pin) {
     );
     accounts.splice(indexOfAccount, 1);
 
+    // Reset the logout timer
+    timerSet = false;
+
     // Logout
     logout();
   }
@@ -379,16 +390,15 @@ const logout = function () {
     labelSumOut.textContent =
     labelSumInterest.textContent =
       0;
+  inputLoanAmount.value = '';
+  inputTransferAmount.value = inputTransferTo.value = '';
+  inputCloseUsername.value = inputClosePin.value = '';
   containerApp.style.opacity = 0;
   labelWelcome.textContent = 'Log in to get started';
   currentUser = undefined;
   loginform.style.display = 'block';
   btnLogout.style.display = 'none';
 };
-
-const globalTimeout = 0.2 * 60 * 1000;
-let futureTime;
-let timerSet = false;
 
 /* Event handlers */
 
