@@ -168,7 +168,15 @@ const displayMovements = function (currentUser, sort = false) {
   DatesToMovsMap.forEach(function (movement, timeStamp) {
     const movementType = movement >= 0 ? 'deposit' : 'withdrawal';
 
-    let daysDisplayData;
+    const moveOpts = {
+      style: 'currency',
+      currency: currentUser.currency,
+    };
+
+    const moveValue = new Intl.NumberFormat(
+      currentUser.locale,
+      moveOpts
+    ).format(Number(movement.toFixed(2)));
 
     const html = `<div class="movements__row" style="background-color: ${
       index % 2 === 0 ? '#f1f1f1' : '#fff'
@@ -179,9 +187,7 @@ const displayMovements = function (currentUser, sort = false) {
       currentUser.locale,
       timeStamp
     )}</div>
-    <div class="movements__value">${movement.toFixed(2)} ${
-      currentUser.currency
-    }</div>
+    <div class="movements__value">${moveValue}</div>
     </div>
     `;
 
@@ -196,33 +202,53 @@ const calcDisplayBalance = function (currentUser) {
     (acc, mov) => acc + mov,
     0
   );
-  labelBalance.textContent = `${currentUser.balance.toFixed(2)} ${
-    currentUser.currency
-  }`;
   labelDate.textContent = getShortDate(currentUser.locale, Date.now());
+
+  const balanceOpts = {
+    style: 'currency',
+    currency: currentUser.currency,
+  };
+
+  const balance = new Intl.NumberFormat(currentUser.locale, balanceOpts).format(
+    Number(currentUser.balance.toFixed(2))
+  );
+
+  labelBalance.textContent = balance;
 };
 
 const calcDisplaySummary = function (currentUser) {
+  const currOpts = {
+    style: 'currency',
+    currency: currentUser.currency,
+  };
+
   const incomes = currentUser.movements
     .filter(mov => mov > 0)
     .reduce((acc, mov) => acc + mov, 0);
-  labelSumIn.textContent = `${incomes.toFixed(2)} ${currentUser.currency}`;
+  const sumInValue = new Intl.NumberFormat(currentUser.locale, currOpts).format(
+    Number(incomes.toFixed(2))
+  );
+  labelSumIn.textContent = sumInValue;
 
   const outgoing = currentUser.movements
     .filter(mov => mov < 0)
     .reduce((acc, mov) => acc + mov, 0);
-  labelSumOut.textContent = `${Math.abs(outgoing.toFixed(2))} ${
-    currentUser.currency
-  }`;
+  const outgoingValue = new Intl.NumberFormat(
+    currentUser.locale,
+    currOpts
+  ).format(Number(outgoing.toFixed(2)));
+  labelSumOut.textContent = outgoingValue;
 
   const interest = currentUser.movements
     .filter(deposit => deposit > 0)
     .map(deposit => (deposit * currentUser.interestRate) / 100)
     .filter(deposit => deposit > 1)
     .reduce((acc, intrst) => acc + intrst, 0);
-  labelSumInterest.textContent = `${interest.toFixed(2)} ${
-    currentUser.currency
-  }`;
+  const interestValue = new Intl.NumberFormat(
+    currentUser.locale,
+    currOpts
+  ).format(Number(interest.toFixed(2)));
+  labelSumInterest.textContent = interestValue;
 };
 
 const createUsernames = function (accs) {
@@ -278,6 +304,34 @@ const login = function (username, pin) {
 
     // Unhide and show the app container
     containerApp.style.opacity = 100;
+
+    // Start login timeout
+    console.log('Login session timeout started');
+    const startLogOutTime = setInterval(() => {
+      // Call the time current time every second
+      let timeNow = Date.now();
+
+      // Set the future time for the first time only
+      if (!timerSet) {
+        futureTime = globalTimeout + timeNow;
+        timerSet = true;
+      }
+
+      let remainingTime = futureTime - timeNow;
+      if (remainingTime > 0) {
+        // Log the remaining time to the UI
+        let remainingMinutes = Math.floor(remainingTime / 1000 / 60);
+        let remainingSeconds = Math.floor((remainingTime / 1000) % 60);
+        labelTimer.textContent = `${String(remainingMinutes).padStart(
+          2,
+          0
+        )}:${String(remainingSeconds).padStart(2, 0)}`;
+      } else {
+        logout();
+        console.log('Application has logged out!');
+        clearInterval(startLogOutTime);
+      }
+    }, 1000);
   } else {
     console.log('Invalid User');
   }
@@ -294,10 +348,12 @@ const requestLoan = function (loanAmount) {
 
   if (isApproved) {
     // Add a deposit transaction to the current logged in user account's movements array with the timestamp to movementDates array
-    const transactionDate = new Date(Date.now()).toISOString();
-    currentUser.movements.push(loanAmount);
-    currentUser.movementsDates.push(transactionDate);
-    displayAccountInfo(currentUser);
+    setTimeout(() => {
+      const transactionDate = new Date(Date.now()).toISOString();
+      currentUser.movements.push(loanAmount);
+      currentUser.movementsDates.push(transactionDate);
+      displayAccountInfo(currentUser);
+    }, 3000);
   }
 };
 
@@ -315,6 +371,8 @@ const closeAccount = function (username, pin) {
 };
 
 const logout = function () {
+  timerSet = false;
+  console.log(futureTime);
   containerMovements.innerHTML = '';
   labelBalance.textContent =
     labelSumIn.textContent =
@@ -327,6 +385,10 @@ const logout = function () {
   loginform.style.display = 'block';
   btnLogout.style.display = 'none';
 };
+
+const globalTimeout = 0.2 * 60 * 1000;
+let futureTime;
+let timerSet = false;
 
 /* Event handlers */
 
@@ -410,5 +472,3 @@ btnLogout.addEventListener('click', function (e) {
   e.preventDefault();
   logout();
 });
-
-const movementsArray = Array.from(document.querySelectorAll('.movements__row'));
